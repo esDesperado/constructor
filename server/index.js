@@ -8,9 +8,10 @@ const bcrypt = require('bcrypt')
 const fileUpload = require('express-fileupload')
 const router = require('./routes/index')
 const errorHandler = require('./middleware/ErrorHandlingMiddleware')
-const PORT = process.env.PORT || 7000
+const PORT = 443 || process.env.PORT || 7000
 const app = express()
 const request = require("request");
+const fs = require('fs')
 
 app.use(cors())
 app.use(express.json())
@@ -30,12 +31,27 @@ const start = async () => {
     try{
         await sequelize.authenticate()
         await sequelize.sync()
-        app.listen(PORT, () => console.log(`server started on port ${PORT}`))
+        //let proxy = require('http-proxy').createProxyServer();
 
+        let SSloptions = {
+            key:    fs.readFileSync('/etc/letsencrypt/live/stroidiskont.com/privkey.pem'),
+            cert:   fs.readFileSync('/etc/letsencrypt/live/stroidiskont.com/fullchain.pem'),
+            ca: [
+                fs.readFileSync('/etc/letsencrypt/live/stroidiskont.com/cert.pem')
+            ],
+            rejectUnauthorized: false,
+            requestCert: true,
+            agent: false,
+            strictSSL: false
+        };
 
-        }catch(e){
-            console.log(e)
-        }
+        app.https(SSloptions).io();
+
+        app.listen(14443, () => console.log(`server started on port ${14443}`));
+
+    }catch(e){
+        console.log(e)
+    }
 
 }
 

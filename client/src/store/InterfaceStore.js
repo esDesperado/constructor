@@ -136,7 +136,7 @@ padding:30px 5% 30px 5%;
                 bottomText:'<p style=\"text-align: center;\">Нажимая на кнопку вы даёте согласие на обработку персональных данных</p>',
                 textAfterSend:'<div style=\"text-align: center;\"><h1><strong>Мы получили вашу заявку!</strong></h1></div>\r\n<div>\r\n<div style=\"text-align: center;\">Наши менеджеры свяжутся с вами в ближайшее время!</div>\r\n</div>',
             }),
-            'Товар':JSON.stringify({css:'min-height:200px;min-width:200px;',pcShow:true,mobileShow:true,}),
+            'Товар':JSON.stringify({css:'',pcShow:true,mobileShow:true,}),
             'Копия':JSON.stringify({css:'min-height:200px;min-width:200px;',pcShow:true,mobileShow:true,}),
             'Квиз':JSON.stringify({css:'min-height:200px;min-width:200px;',pcShow:true,mobileShow:true,}),
             'Видео':JSON.stringify({css:'min-height:200px;min-width:200px;',pcShow:true,mobileShow:true,}),
@@ -160,6 +160,7 @@ padding:30px 5% 30px 5%;
         this._images = []
         this._mobile = false
         this._pages = []
+        this._page = {}
         this._blocks = []
         this._basket = JSON.parse(localStorage.getItem('basket') || '[]')
         this._components = []
@@ -168,6 +169,12 @@ padding:30px 5% 30px 5%;
         this._currProduct = null
         makeAutoObservable(this)
 
+    }
+    setPage(data){
+        this._page = data
+    }
+    get page(){
+        return this._page
     }
     setBasket(data){
         this._basket = data

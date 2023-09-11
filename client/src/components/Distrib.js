@@ -47,33 +47,47 @@ const Distributor = observer((data) => {
         if(document.getElementById('blockProps'+data.id)){
             if(document.getElementById('blockProps'+data.id).style.display === 'grid' && user.role > 3 && document.location.pathname.includes(ADMIN_ROUTE)){
                 let cont = document.getElementById('blockProps'+data.id).getBoundingClientRect()
-                if(window.getComputedStyle(document.getElementById('blockProps'+data.id)).getPropertyValue('opacity') === '1' && (!(e.pageX >= cont.left && e.pageX <= cont.right) || !(e.pageY >= cont.top && e.pageY <= cont.bottom))){
+                if(window.getComputedStyle(document.getElementById('blockProps'+data.id)).getPropertyValue('opacity') === '1'
+                    && (
+                        !(e.pageX >= cont.left && e.pageX <= cont.right)
+                        || !(e.pageY >= cont.top
+                        && e.pageY <= cont.bottom)
+                    )
+                ){
                     document.getElementById('blockProps'+data.id).style.display = 'none'
                 }
             }
         }
     });
-    let [stylesM,setStylesM] = useState(JSON.parse(data.obj || "{}").css || '')
+    let [stylesM,setStylesM] = useState(data.type !== 'Товар' ? JSON.parse(data.obj || "{}").css || '' : '')
     useEffect(()=>{
-        let css = (JSON.parse(data.obj || "{}").css || '').trim().replace(/\n/g, "").replace(/\r/g, "")
-        let cssM = (JSON.parse(data.obj || "{}").cssM || '').trim().replace(/\n/g, "").replace(/\r/g, "")
-        if(css[css.length - 1] === ';'){css = css.substring(0, css.length - 1)}
-        if(cssM[cssM.length - 1] === ';'){cssM = cssM.substring(0, cssM.length - 1)}
-        let mStyles = {}
-        css.split(';').filter(d=>{
-            let arr = d.split(':')
-            mStyles[arr[0]] = arr[1];
-            return true
-        })
-        cssM.split(';').filter(d=>{
-            let arr = d.split(':')
-            mStyles[arr[0]] = arr[1];
-            return true
-        })
-        let toCSS = '';
-        for(let key in mStyles){toCSS = toCSS + key+':'+mStyles[key]+';\n'};
-        setStylesM('')
-        setStylesM(toCSS)
+        if (data.type !== 'Товар') {
+            let css = (JSON.parse(data.obj || "{}").css || '').trim().replace(/\n/g, "").replace(/\r/g, "")
+            let cssM = (JSON.parse(data.obj || "{}").cssM || '').trim().replace(/\n/g, "").replace(/\r/g, "")
+            if (css[css.length - 1] === ';') {
+                css = css.substring(0, css.length - 1)
+            }
+            if (cssM[cssM.length - 1] === ';') {
+                cssM = cssM.substring(0, cssM.length - 1)
+            }
+            let mStyles = {}
+            css.split(';').filter(d => {
+                let arr = d.split(':')
+                mStyles[arr[0]] = arr[1];
+                return true
+            })
+            cssM.split(';').filter(d => {
+                let arr = d.split(':')
+                mStyles[arr[0]] = arr[1];
+                return true
+            })
+            let toCSS = '';
+            for (let key in mStyles) {
+                toCSS = toCSS + key + ':' + mStyles[key] + ';\n'
+            }
+            setStylesM('')
+            setStylesM(toCSS)
+        }
     },[JSON.stringify(data),data.obj])
     if(JSON.parse(data.obj || '{}').js && (!user.role > 0 || !document.location.pathname.includes(ADMIN_ROUTE))){
         try{window.eval(JSON.parse(data.obj || '{}').js)}catch(err){console.error('Ошибка во время исполнения кода: \n\n',err)}
@@ -86,17 +100,19 @@ const Distributor = observer((data) => {
         <div ref={block} id={'block'+data.id}
             onMouseOver={()=>{if(inface.moveblock !== 'block'+data.id && (!inface.moveblock.includes('block') || inface.blocks.filter(d=>d.id+'' === inface.moveblock.replace('block','')).length === 0 || (inface.moveblock === '' || (document.getElementById(inface.moveblock).offsetWidth > document.getElementById('block'+data.id).offsetWidth) || parseInt(inface.moveblock.replace('block','')) < data.id))){inface.setMoveblock('block'+data.id);}}}
             onMouseOut={e=>{let rect = document.getElementById('block'+data.id).getBoundingClientRect();if(inface.moveblock === 'block'+data.id && !data.parent.includes('page') && (e.pageX < rect.left || e.pageX > rect.right || e.pageY < rect.top || e.pageY > rect.bottom)){inface.setMoveblock(data.parent);}}} onClick={()=>{
-                if(user.role > 3 && document.location.pathname.includes(ADMIN_ROUTE)){}else{
-                    if((JSON.parse(data.obj || '{}').href || '').includes('http')){
+                if (user.role > 3 && document.location.pathname.includes(ADMIN_ROUTE)) {
+
+                } else {
+                    if ((JSON.parse(data.obj || '{}').href || '').includes('http')) {
                         window.open(JSON.parse(data.obj || '{}').href, '_blank')
-                    }else if((JSON.parse(data.obj || '{}').innerLink || 'Нет') === 'Нет'){
+                    } else if ((JSON.parse(data.obj || '{}').innerLink || 'Нет') === 'Нет') {
                         //
-                    }else{
-                        if(JSON.parse(data.obj || '{}').innerLink.includes('страница')){
-                        navigate('/'+inface.pages.filter(p=>p.id === parseInt(JSON.parse(data.obj || '{}').innerLink.split('_')[1]))[0].path)
-                        }else{
-                        let el = document.querySelector('#block'+JSON.parse(data.obj || '{}').innerLink.split('_')[1]);
-                        el.scrollIntoView({block:"start",behavior:'smooth'})
+                    } else {
+                        if (JSON.parse(data.obj || '{}').innerLink.includes('страница')) {
+                            navigate('/'+inface.pages.filter(p=>p.id === parseInt(JSON.parse(data.obj || '{}').innerLink.split('_')[1]))[0].path)
+                        } else {
+                            let el = document.querySelector('#block'+JSON.parse(data.obj || '{}').innerLink.split('_')[1]);
+                            el.scrollIntoView({block:"start",behavior:'smooth'})
                         }
                     }
             }}} style={inface.currSettings && inface.currSettings.id && inface.currSettings.id === data.id?{border:'2px '+inface.acolor2+' dashed'}:{transitionProperty:'transform,opacity',}} className={!(user.role > 3 && document.location.pathname.includes(ADMIN_ROUTE)) && ((JSON.parse(data.obj || '{}').href || '').includes('http') || (JSON.parse(data.obj || '{}').innerLink || 'Нет') !== 'Нет')?JSON.parse(data.obj || "{}").anim === 'true'?'FDAStart block hoverLink':'FDAEnd block hoverLink':JSON.parse(data.obj || "{}").anim === 'true'?'FDAStart block':'FDAEnd block'}>

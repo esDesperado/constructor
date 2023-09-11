@@ -97,13 +97,21 @@ class Controller{
             }
             if(proc === 'addPage'){
                 let pages = await Pages.findAll()
-                let arr2 = []
-                let arr3 = []
-                pages.map(d=>{if(d.path.includes('newPath')){arr3.push(parseInt(d.path.match(/\d+/g).join('')))}if(d.title.includes('newPage')){arr2.push(parseInt(d.title.match(/\d+/g).join('')))}})
-                let name = (arr2.concat(arr3).sort((a,b)=>a-b).reverse()[0] || 0) + 1
-                await Pages.create({title:'newPage' + name,path:'newPath' + name})
+
+                if (pathname) {
+                    await Pages.create({title:pathname,path:pathname})
+                } else {
+                    let arr2 = []
+                    let arr3 = []
+                    pages.map(d=>{if(d.path.includes('newPath')){arr3.push(parseInt(d.path.match(/\d+/g).join('')))}if(d.title.includes('newPage')){arr2.push(parseInt(d.title.match(/\d+/g).join('')))}})
+                    let name = (arr2.concat(arr3).sort((a,b)=>a-b).reverse()[0] || 0) + 1
+                    pathname = 'newPath' + name;
+                    await Pages.create({title:'newPage' + name,path:pathname});
+                }
+
                 pages = await Pages.findAll()
-                return res.json({pages,path:'newPath'+name})
+                let blocks = await Blocks.findAll()
+                return res.json({pages,blocks,path:pathname})
             }
 
             if(proc === 'setPageProperty'){

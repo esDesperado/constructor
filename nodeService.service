@@ -1,0 +1,10 @@
+[Unit]
+Description=start server
+
+[Service]
+Type=oneshot
+ExecStart=/root/startServer.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

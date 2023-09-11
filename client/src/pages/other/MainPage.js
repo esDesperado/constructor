@@ -7,6 +7,7 @@ import {setIAttr,setBAttr,addBlock,auth,changeSite,setObjProperty} from "../../h
 import {Editor} from '@tinymce/tinymce-react';
 import Distrib from "../../components/Distrib"
 import LazyImage from "../../components/LazyImage";
+import Slider from "../../components/Slider";
 
 const MainPage = observer(() => {
     const navigate = useNavigate()
@@ -17,6 +18,44 @@ const MainPage = observer(() => {
     const editorRef = useRef(0)
     const {inface,user} = useContext(Context)
     const [prodCount,setProdCount] = useState(1)
+    let [page,setPage] = useState(null)
+    useEffect(()=>{
+        let arr2 = []
+        inface.blocks.map(d=>{
+            if(d.type === 'Товар' && JSON.parse(d.obj || "{}").category && !arr2.includes(JSON.parse(d.obj || "{}").category)){
+                arr2.push(JSON.parse(d.obj || "{}").category)
+            }
+            return true
+        })
+        arr2 = arr2.slice().sort();
+        let clearPath = decodeURI(document.location.pathname).replace(ADMIN_ROUTE,'').replace('/','');
+        let page1;
+
+        if (arr2.includes(clearPath)) {
+            page1 = inface.pages.filter(page=>page.path === clearPath)[0];
+            let page2 = inface.pages.filter(page=>page.path === '')[0];
+            page1.rightId = page1.id;
+            page1.id = page2.id;
+        } else {
+            page1 = inface.pages.filter(page=>page.path === decodeURI(document.location.pathname).replace(ADMIN_ROUTE,'').replace('/',''))[0];
+            page1.rightId = page1.id;
+        }
+
+        if(document.title !== JSON.parse(page1.obj || '{}').title){
+            document.title = page1.title
+        }
+        document.querySelector('meta[name="description"]').setAttribute("content",JSON.parse(page1.obj || '{}').description || '');
+        document.querySelector('meta[name="keywords"]').setAttribute("content",JSON.parse(page1.obj || '{}').keywords || '');
+        if(JSON.parse(page1.obj || '{}').js && (!user.role > 0 || !document.location.pathname.includes(ADMIN_ROUTE))){
+            try{
+                window.eval(JSON.parse(page1.obj || '{}').js)
+            }catch(err){
+                console.error('Ошибка во время исполнения кода: \n\n',err)
+            }
+        }
+        setPage(page1);
+        inface.setPage(page1);
+    },[document.location.pathname])
     function checkBtn(){
         let passV = document.getElementById('dmnPass').value.trim()
         let pnV = document.getElementById('dmnLog').value.trim()
@@ -42,34 +81,42 @@ const MainPage = observer(() => {
     }
     const [loadCount,setLoadCount] = useState(1)
     useEffect(()=>{
-        if(loadCount <= inface.blocks.length && (inface.blocks.filter(bl=>bl.page === inface.pages.filter(page=>page.path === document.location.pathname.replace(ADMIN_ROUTE,'').replace('/',''))[0].id && bl.type==='post-header')[0]?inface.show:true)){
+        if(loadCount <= inface.blocks.length && (inface.blocks.filter(bl=>bl.page === inface.pages.filter(page=>page.path === page.id && bl.type==='post-header')[0]?inface.show:true))){
             const loadTimer = setTimeout(()=>{setLoadCount(loadCount + 1)},400)
             return () => clearTimeout(loadTimer)
         }
     },[loadCount,inface.show])
     useEffect(()=>{
-        if(inface.blocks.filter(bl=>bl.page === inface.pages.filter(page=>page.path === document.location.pathname.replace(ADMIN_ROUTE,'').replace('/',''))[0].id && bl.type==='post-header')[0]?inface.show:true){
+        if(inface.blocks.filter(bl=>page && bl.page === page.id && bl.type==='post-header')[0]?inface.show:true){
             const FDAItems = document.querySelectorAll('.FDAStart')
             if(FDAItems.length > 0){
-                window.addEventListener('scroll',animOnScroll)
-                function animOnScroll(params){
+                function animOnScroll(){
+                    //console.log(window.scrollY)
                     Array.from(FDAItems).map(item=>{
-                        let h1 = item.offsetHeight
-                        let t1 = offset(item).top
+                        let offsetHeight = item.offsetHeight
+                        let offsetTop = offset(item).top
                         //const startAnim = 5
                         let animPoint = 0
-                        if(t1 > document.documentElement.clientHeight){
-                            animPoint = (t1 - document.documentElement.clientHeight)
+                        if(offsetTop > document.documentElement.clientHeight){
+                            animPoint = (offsetTop - document.documentElement.clientHeight)
                         }
                         /*if(h1 > document.documentElement.clientHeight){
                             animPoint = t1 - document.documentElement.clientHeight / startAnim
                         }*/
                         if(inface.mobile){
-                            if((((window.pageYOffset > animPoint - 100) || t1 - 150 < document.documentElement.clientHeight) && window.pageYOffset < (t1 + h1)) || window.pageYOffset >= document.getElementById('root').offsetHeight - document.documentElement.clientHeight - 150){
+                            if(
+                                (
+                                    (window.pageYOffset > animPoint - 100)
+                                    ||
+                                    offsetTop - 150 < document.documentElement.clientHeight
+                                )
+                                ||
+                                window.pageYOffset >= document.documentElement.scrollHeight - 150
+                            ){
                                 item.classList.add('FDAEnd')
                             }
                         }else{
-                            if((((window.pageYOffset > animPoint) || t1 - 150 < document.documentElement.clientHeight) && window.pageYOffset < (t1 + h1)) || window.pageYOffset >= document.getElementById('root').offsetHeight - document.documentElement.clientHeight - 150){
+                            if((((window.pageYOffset > animPoint) || offsetTop - 150 < document.documentElement.scrollHeight) && window.pageYOffset < (offsetTop + offsetHeight)) || window.pageYOffset >= document.getElementById('root').offsetHeight - document.documentElement.scrollHeight - 150){
                                 item.classList.add('FDAEnd')
                             }else{
                                 //item.classList.remove('FDAEnd')
@@ -84,10 +131,27 @@ const MainPage = observer(() => {
                         scrollTop = window.pageYOffset || document.documentElement.scrollTop;
                         return {top:rect.top + scrollTop,left:rect.left + scrollLeft}
                 }
+                window.addEventListener('scroll', animOnScroll)
+
                 animOnScroll();
             }
         }
-    },[document.getElementById('root').offsetHeight,document.querySelectorAll('.FDAStart').length,(inface.blocks.filter(bl=>bl.page === inface.pages.filter(page=>page.path === document.location.pathname.replace(ADMIN_ROUTE,'').replace('/',''))[0].id && bl.type==='post-header')[0]?inface.show:true)])
+    },[
+        document.getElementById('root').offsetHeight,
+        document.querySelectorAll('.FDAStart').length,
+        (inface.blocks.filter(bl=>
+            bl.page === inface.pages.filter(page=>
+                page.path === decodeURI(document.location.pathname).replace(ADMIN_ROUTE,'').replace('/','')
+            )[0].id
+            && bl.type==='post-header')[0]?
+                inface.show
+            :
+                true
+        ),
+        page
+    ])
+
+
     let curX = 0
     let curY = 0
     document.addEventListener('mousemove',e=>{
@@ -175,16 +239,7 @@ const MainPage = observer(() => {
         newSettings.obj = JSON.stringify(obj1);
         inface.setCurrSettings(newSettings)
     }
-    let [page,setPage] = useState(inface.pages.filter(page=>page.path === document.location.pathname.replace(ADMIN_ROUTE,'').replace('/',''))[0])
-    useEffect(()=>{
-        setPage(inface.pages.filter(page=>page.path === document.location.pathname.replace(ADMIN_ROUTE,'').replace('/',''))[0])
-        if(document.title !== JSON.parse(page.obj || '{}').title){document.title = page.title}
-        document.querySelector('meta[name="description"]').setAttribute("content",JSON.parse(page.obj || '{}').description || '');
-        document.querySelector('meta[name="keywords"]').setAttribute("content",JSON.parse(page.obj || '{}').keywords || '');
-        if(JSON.parse(page.obj || '{}').js && (!user.role > 0 || !document.location.pathname.includes(ADMIN_ROUTE))){
-            try{window.eval(JSON.parse(page.obj || '{}').js)}catch(err){console.error('Ошибка во время исполнения кода: \n\n',err)}
-        }
-    },[document.location.pathname])
+
     useEffect(()=>{
         document.addEventListener('click',e=>{
             if(inface.blockType){
@@ -222,7 +277,7 @@ const MainPage = observer(() => {
         <div style={{width:'100%',color:inface.interface.color,background:inface.interface.background,fontSize:inface.width > 350?inface.width > 600?'16px':'12px':'11px',position:'relative',}}>
             {user.role > 0 && document.location.pathname.includes(ADMIN_ROUTE) && <div id={'blockSettings'} style={{overflowY:'auto',boxShadow:'-5px 0px 50px #C7C7C799',position:'fixed',width:'300px',zIndex:'1009',height:inface.height,top:'0px',right:0,opacity:0,display:'none',transitionDuration:"0.5s",fontWeight:'bold',fontSize:"0.8em",background:'white',color:'black',padding:'65px 10px',}}>
                 <div style={{fontSize:'1.3em'}}>Настройки
-                    <select onChange={e=>{let newObj = inface.blocks.filter(d=>d.type + ' ' + d.id === e.target.value)[0];inface.setCurrSettings(newObj);}} value={inface.currSettings?inface.currSettings.type + ' ' + inface.currSettings.id:''}>
+                    <select style={{marginLeft:'5px'}} onChange={e=>{let newObj = inface.blocks.filter(d=>d.type + ' ' + d.id === e.target.value)[0];inface.setCurrSettings(newObj);}} value={inface.currSettings?inface.currSettings.type + ' ' + inface.currSettings.id:''}>
                         {inface.blocks.slice().sort((a,b)=>a.id-b.id).map((d,key)=><option>{d.type + ' ' + d.id}</option>)}
                     </select>
                 </div>
@@ -244,15 +299,38 @@ const MainPage = observer(() => {
                     </div>:
                     <div>
                     {inface.currSettings && inface.currSettings.type === 'Товар' &&<div style={{position:'relative',width:'calc(100% - 20px)',paddingTop:'1.3em',}}>
-                        Категория: <select value={JSON.parse(inface.currSettings.obj || "{}").category} onChange={e=>{if(e.target.value === 'Добавить категорию'){let cat = prompt("Введите название категории");setObjProperty('category',cat,inface.currSettings.id).then(d=>{inface.setBlocks(d);inface.setCurrSettings(d.filter(d=>d.id === inface.currSettings.id)[0])}).catch(d=>alert(d));e.target.value = cat;}else{setObjProperty('category',e.target.value,inface.currSettings.id).then(d=>{inface.setBlocks(d);inface.setCurrSettings(d.filter(d=>d.id === inface.currSettings.id)[0])}).catch(d=>alert(d));}}} onClick={e=>{if(e.target.value === 'Добавить категорию'){let cat = prompt("Введите название категории:");setObjProperty('category',cat,inface.currSettings.id).then(d=>{inface.setBlocks(d);inface.setCurrSettings(d.filter(d=>d.id === inface.currSettings.id)[0])}).catch(d=>alert(d));e.target.value = cat;}}}>
+                        Категория: <select value={JSON.parse(inface.currSettings.obj || "{}").category} onChange={e=>{
+                            if(e.target.value === 'Добавить категорию'){
+                                let cat = prompt("Введите название категории");
+                                setObjProperty('category',cat,inface.currSettings.id).then(d=>{
+                                    inface.setBlocks(d);
+                                    inface.setCurrSettings(d.filter(d=>d.id === inface.currSettings.id)[0])
+                                }).catch(d=>alert(d));
+                                e.target.value = cat;
+                                let form = new FormData();
+                                form.append('pathname',cat);
+                                changeSite('addPage', form).then(data=>{
+                                    inface.setPages(data.pages);
+                                    inface.setBlocks(data.blocks);
+                                    navigate('../'+data.path + ADMIN_ROUTE);
+                                })
+                            }else{
+                                setObjProperty('category',e.target.value,inface.currSettings.id).then(d=>{
+                                    inface.setBlocks(d);
+                                    inface.setCurrSettings(d.filter(d=>d.id === inface.currSettings.id)[0])
+                                }).catch(d=>alert(d));
+                            }}} onClick={e=>{if(e.target.value === 'Добавить категорию'){let cat = prompt("Введите название категории:");setObjProperty('category',cat,inface.currSettings.id).then(d=>{inface.setBlocks(d);inface.setCurrSettings(d.filter(d=>d.id === inface.currSettings.id)[0])}).catch(d=>alert(d));e.target.value = cat;}}}>
                             {categories.map(d=><option>{d}</option>)}
                             <option>Добавить категорию</option>
                         </select><br/><br/>
                         Название:{inface.blocks.map(d=>d.type === 'Товар' && d.id === inface.currSettings.id &&<input defaultValue={JSON.parse(inface.currSettings.obj || "{}").title} onBlur={e=>{setObjProperty('title',e.target.value,inface.currSettings.id).then(d=>{inface.setBlocks(d);inface.setCurrSettings(d.filter(d=>d.id === inface.currSettings.id)[0])}).catch(d=>alert(d));}} type='text' className='niceInput'/>)}<br/><br/>
                         Цена:{inface.blocks.map(d=>d.type === 'Товар' && d.id === inface.currSettings.id &&<input defaultValue={JSON.parse(inface.currSettings.obj || "{}").price} onBlur={e=>{setObjProperty('price',e.target.value,inface.currSettings.id).then(d=>{inface.setBlocks(d);inface.setCurrSettings(d.filter(d=>d.id === inface.currSettings.id)[0])}).catch(d=>alert(d));}} type='number' min="0" className='niceInput'/>)}<br/><br/>
-                        Изображение: {!JSON.parse(inface.currSettings.obj || "{}").background || !JSON.parse(inface.currSettings.obj || "{}").background.length?<button onClick={()=>{inface.setCurrImageProp('background');document.getElementById('theOnlyOneBody').style.overflow = 'hidden'}} className='niceBtn'>Выберите файл</button>:<span style={{fontWeight:'400',}}>{JSON.parse(inface.currSettings.obj).background.substr(0, 5)}...{JSON.parse(inface.currSettings.obj).background.substr(JSON.parse(inface.currSettings.obj).background.length - 9, 9)}<svg onClick={()=>{setObjProperty('background','',inface.currSettings.id).then(d=>{inface.setBlocks(d);inface.setCurrSettings(d.filter(d=>d.id === inface.currSettings.id)[0])}).catch(d=>alert(d))}} style={{cursor:'pointer',width:'1em',height:'1em',marginLeft:'10px',fill:inface.acolor,verticalAlign:'middle'}} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><use xlinkHref='#crossSVG' ></use></svg></span>}<br/><br/>
-                        {1 < 0 &&<div>Краткое описание:{inface.blocks.map(d=>d.type === 'Товар' && d.id === inface.currSettings.id &&<textarea rows='5' style={{width:'100%'}} defaultValue={JSON.parse(inface.currSettings.obj || "{}").shortDesc} onBlur={e=>{setObjProperty('shortDesc',e.target.value,inface.currSettings.id).then(d=>{inface.setBlocks(d);inface.setCurrSettings(d.filter(d=>d.id === inface.currSettings.id)[0])}).catch(d=>alert(d));}}/>)}<br/><br/></div>}
+                        {JSON.parse(JSON.parse(inface.currSettings.obj || '{}').imgArr || '[]').map(d=><div style={{fontWeight:'400',margin:'5px 0'}}>{d.substr(0, 5)}...{d.substr(d.length - 9, 9)}<svg onClick={()=>{setObjProperty('imgArr',JSON.stringify(JSON.parse(JSON.parse(inface.currSettings.obj || '{}').imgArr || '[]').filter(a=>a!==d)),inface.currSettings.id).then(d=>{inface.setBlocks(d);inface.setCurrSettings(d.filter(d=>d.id === inface.currSettings.id)[0])}).catch(d=>alert(d))}} style={{cursor:'pointer',width:'1em',height:'1em',marginLeft:'10px',fill:inface.acolor,verticalAlign:'middle'}} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><use xlinkHref='#crossSVG' ></use></svg></div>)}
+                        <button style={{margin:'5px 0'}} onClick={()=>{inface.setCurrImageProp('imgArr');document.getElementById('theOnlyOneBody').style.overflow = 'hidden'}} className='niceBtn'>Добавить картинку</button>
 
+                        <div style={{display:'none'}}>Изображение: {!JSON.parse(inface.currSettings.obj || "{}").background || !JSON.parse(inface.currSettings.obj || "{}").background.length?<button onClick={()=>{inface.setCurrImageProp('background');document.getElementById('theOnlyOneBody').style.overflow = 'hidden'}} className='niceBtn'>Выберите файл</button>:<span style={{fontWeight:'400',}}>{JSON.parse(inface.currSettings.obj).background.substr(0, 5)}...{JSON.parse(inface.currSettings.obj).background.substr(JSON.parse(inface.currSettings.obj).background.length - 9, 9)}<svg onClick={()=>{setObjProperty('background','',inface.currSettings.id).then(d=>{inface.setBlocks(d);inface.setCurrSettings(d.filter(d=>d.id === inface.currSettings.id)[0])}).catch(d=>alert(d))}} style={{cursor:'pointer',width:'1em',height:'1em',marginLeft:'10px',fill:inface.acolor,verticalAlign:'middle'}} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><use xlinkHref='#crossSVG' ></use></svg></span>}<br/><br/>
+                        {1 < 0 &&<div>Краткое описание:{inface.blocks.map(d=>d.type === 'Товар' && d.id === inface.currSettings.id &&<textarea rows='5' style={{width:'100%'}} defaultValue={JSON.parse(inface.currSettings.obj || "{}").shortDesc} onBlur={e=>{setObjProperty('shortDesc',e.target.value,inface.currSettings.id).then(d=>{inface.setBlocks(d);inface.setCurrSettings(d.filter(d=>d.id === inface.currSettings.id)[0])}).catch(d=>alert(d));}}/>)}<br/><br/></div>}
+                        </div>
 
                     </div>}
                     {inface.currSettings && inface.currSettings.type !== 'Товар' &&<div style={{position:'relative',width:'calc(100% - 20px)',paddingTop:'1.3em',}}>
@@ -505,26 +583,26 @@ const MainPage = observer(() => {
                 <svg style={{cursor:'pointer',top:'40px',width:'20px',height:'20px',right:'40px',fill:'white',overflow:'hidden',position:'absolute'}} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><use xlinkHref='#crossSVG' ></use></svg>
                 <div id='pageSettingsCont' style={{display:'grid',gridGap:'1em',justifyItems:'center',borderRadius:'10px',margin:'50px 0',padding:document.documentElement.clientWidth > 1000?'30px 60px':'20px',position:'relative',width:document.documentElement.clientWidth > 1000?'1000px':'calc(100% - 40px)',left:document.documentElement.clientWidth > 1000?'calc(50% - 560px)':'0',color:'black',background:'white',fontSize:document.documentElement.clientWidth > 700?'inherit':'13px'}}>
                     <div style={{textAlign:'center',fontWeight:'bold'}}>Настройки страницы</div><br/>
-                    {inface.pages.map(p=>p.id === page.id && <div style={{display:'grid',gridGap:'1em'}}>
-                        <div>Название: <input defaultValue={page.title} onBlur={e=>{let form = new FormData();form.append('id',page.id);form.append('property','title');form.append('value',e.target.value);changeSite('setPageProperty',form).then(data=>{inface.setPages(data);setPage(inface.pages.filter(page=>page.path === document.location.pathname.replace(ADMIN_ROUTE,'').replace('/',''))[0])});}} style={{fontWeight:'bold',background:inface.aback,color:inface.acolor,marginRight:'20px',minWidth:'230px'}} className='niceInput'/></div>
-                        <div>Путь: <input defaultValue={page.path} onBlur={e=>{let form = new FormData();form.append('id',page.id);form.append('property','path');form.append('value',e.target.value);changeSite('setPageProperty',form).then(data=>{inface.setPages(data);navigate(e.target.value.length?'/'+e.target.value+'/administrator':'/'+e.target.value+'administrator');});}} style={{fontWeight:'bold',background:inface.aback,color:inface.acolor,marginRight:'20px',}} className='niceInput'/></div>
+                    {page && inface.pages.map(p=>p.id === page.id && <div style={{display:'grid',gridGap:'1em'}}>
+                        <div>Название: <input key={page.path} defaultValue={page.title} onBlur={e=>{let form = new FormData();form.append('id',page.rightId);form.append('property','title');form.append('value',e.target.value);changeSite('setPageProperty',form).then(data=>{inface.setPages(data);setPage(inface.pages.filter(page=>page.path === document.location.pathname.replace(ADMIN_ROUTE,'').replace('/',''))[0])});}} style={{fontWeight:'bold',background:inface.aback,color:inface.acolor,marginRight:'20px',minWidth:'230px'}} className='niceInput'/></div>
+                        <div>Путь: <input key={page.path} defaultValue={page.path} onBlur={e=>{let form = new FormData();form.append('id',page.rightId);form.append('property','path');form.append('value',e.target.value);changeSite('setPageProperty',form).then(data=>{inface.setPages(data);document.getElementById('theOnlyOneBody').style.overflow = 'auto';navigate(e.target.value.length?'/'+e.target.value+'/administrator':'/'+e.target.value+'administrator');});}} style={{fontWeight:'bold',background:inface.aback,color:inface.acolor,marginRight:'20px',}} className='niceInput'/></div>
                         <div style={{textAlign:'center'}}>Описание:<br/>
-                            <textarea style={{minWidth:'500px'}} rows='6' defaultValue={JSON.parse(page.obj || '{}').description} onBlur={e=>{let obj1 = JSON.parse(page.obj || '{}');obj1.description = e.target.value;let form = new FormData();form.append('id',page.id);form.append('property','obj');form.append('value',JSON.stringify(obj1));changeSite('setPageProperty',form).then(data=>inface.setPages(data));}}></textarea>
+                            <textarea key={page.path} style={{minWidth:'500px'}} rows='6' defaultValue={JSON.parse(page.obj || '{}').description} onBlur={e=>{let obj1 = JSON.parse(page.obj || '{}');obj1.description = e.target.value;let form = new FormData();form.append('id',page.rightId);form.append('property','obj');form.append('value',JSON.stringify(obj1));changeSite('setPageProperty',form).then(data=>inface.setPages(data));}}></textarea>
                         </div>
                         <div style={{textAlign:'center'}}>Ключевые слова:<br/>
-                            <textarea style={{minWidth:'500px'}} rows='6' defaultValue={JSON.parse(page.obj || '{}').keywords} onBlur={e=>{let obj1 = JSON.parse(page.obj || '{}');obj1.keywords = e.target.value;let form = new FormData();form.append('id',page.id);form.append('property','obj');form.append('value',JSON.stringify(obj1));changeSite('setPageProperty',form).then(data=>inface.setPages(data));}}></textarea>
+                            <textarea key={page.path} style={{minWidth:'500px'}} rows='6' defaultValue={JSON.parse(page.obj || '{}').keywords} onBlur={e=>{let obj1 = JSON.parse(page.obj || '{}');obj1.keywords = e.target.value;let form = new FormData();form.append('id',page.rightId);form.append('property','obj');form.append('value',JSON.stringify(obj1));changeSite('setPageProperty',form).then(data=>inface.setPages(data));}}></textarea>
                         </div>
                         <div style={{textAlign:'center'}}>CSS:<br/>
-                            <textarea style={{minWidth:'500px'}} rows='6' defaultValue={JSON.parse(page.obj || '{}').css} onBlur={e=>{let obj1 = JSON.parse(page.obj || '{}');obj1.css = e.target.value;let form = new FormData();form.append('id',page.id);form.append('property','obj');form.append('value',JSON.stringify(obj1));changeSite('setPageProperty',form).then(data=>inface.setPages(data));}}></textarea>
+                            <textarea key={page.path} style={{minWidth:'500px'}} rows='6' defaultValue={JSON.parse(page.obj || '{}').css} onBlur={e=>{let obj1 = JSON.parse(page.obj || '{}');obj1.css = e.target.value;let form = new FormData();form.append('id',page.rightId);form.append('property','obj');form.append('value',JSON.stringify(obj1));changeSite('setPageProperty',form).then(data=>inface.setPages(data));}}></textarea>
                         </div>
                         <div style={{width:'100%',textAlign:'center'}}>JS:<br/>
-                            <textarea style={{width:'100%'}} rows='12' defaultValue={JSON.parse(page.obj || '{}').js} onBlur={e=>{let obj1 = JSON.parse(page.obj || '{}');obj1.js = e.target.value;let form = new FormData();form.append('id',page.id);form.append('property','obj');form.append('value',JSON.stringify(obj1));changeSite('setPageProperty',form).then(data=>inface.setPages(data));}}></textarea>
+                            <textarea key={page.path} style={{width:'100%'}} rows='12' defaultValue={JSON.parse(page.obj || '{}').js} onBlur={e=>{let obj1 = JSON.parse(page.obj || '{}');obj1.js = e.target.value;let form = new FormData();form.append('id',page.rightId);form.append('property','obj');form.append('value',JSON.stringify(obj1));changeSite('setPageProperty',form).then(data=>inface.setPages(data));}}></textarea>
                         </div>
                         <div>Основной цвет:
-                            <input defaultValue={JSON.parse(page.obj || '{}').color || '#F94F0D'} onBlur={e=>{let obj1 = JSON.parse(page.obj || '{}');obj1.color = e.target.value;let form = new FormData();form.append('id',page.id);form.append('property','obj');form.append('value',JSON.stringify(obj1));changeSite('setPageProperty',form).then(data=>inface.setPages(data));}} type='color'/>
+                            <input key={page.path} defaultValue={JSON.parse(page.obj || '{}').color || '#F94F0D'} onBlur={e=>{let obj1 = JSON.parse(page.obj || '{}');obj1.color = e.target.value;let form = new FormData();form.append('id',page.rightId);form.append('property','obj');form.append('value',JSON.stringify(obj1));changeSite('setPageProperty',form).then(data=>inface.setPages(data));}} type='color'/>
                         </div>
                         <br/>
-                        {inface.pages.length > 1 && <div onClick={()=>{if(['да','lf','l','д'].includes(prompt('Введите "да" если вы действительно хотите безвозвратно удалить эту страницу и все входящие в неё блоки').toLowerCase())){let form = new FormData();form.append('id',page.id);changeSite('removePage',form).then(data=>{inface.setMoveblock('');inface.setPages(data);navigate('../'+data[0].path+ADMIN_ROUTE)})}}} style={{cursor:'pointer',textDecoration:'underline',fontSize:'1.1em',color:'red',}} viewBox="0 0 596 596" xmlns="http://www.w3.org/2000/svg">Удалить страницу</div>}
+                        {inface.pages.length > 1 && <div key={page.path} onClick={()=>{if(['да','lf','l','д'].includes(prompt('Введите "да" если вы действительно хотите безвозвратно удалить эту страницу и все входящие в неё блоки').toLowerCase())){let form = new FormData();form.append('id',page.rightId);changeSite('removePage',form).then(data=>{inface.setMoveblock('');inface.setPages(data);navigate('../'+data[0].path+ADMIN_ROUTE)})}}} style={{cursor:'pointer',textDecoration:'underline',fontSize:'1.1em',color:'red',}} viewBox="0 0 596 596" xmlns="http://www.w3.org/2000/svg">Удалить страницу</div>}
                     </div>)}
                     <div style={{textAlign:'center',fontWeight:'bold'}}>Настройки сайта:</div>
                     <div>Основной цвет:
@@ -559,7 +637,7 @@ const MainPage = observer(() => {
             </div>}
 
             <div style={{position:'relative',display:'grid',width:'100%',justifyItems:'center'}}>
-                {user.role > 3 && document.location.pathname.includes(ADMIN_ROUTE) &&<div style={{zIndex:'1009',position:'relative',display:'grid',justifyItems:'center',gridAutoFlow:'column',alignItems:'center',fontWeight:'bold',width:'calc(100% - 30px)',textAlign:'center',padding:'5px 15px',color:inface.aback,background:inface.acolor,}}>
+                {page && user.role > 3 && document.location.pathname.includes(ADMIN_ROUTE) &&<div style={{zIndex:'1009',position:'relative',display:'grid',justifyItems:'center',gridAutoFlow:'column',alignItems:'center',fontWeight:'bold',width:'100%',textAlign:'center',padding:'5px 15px',color:inface.aback,background:inface.acolor,}}>
                     <div>
                         Страница: <select value={page.title} onChange={e=>{inface.setMoveblock('');if(e.target.value === 'Новая страница'){changeSite('addPage').then(data=>{inface.setPages(data.pages);navigate('../'+data.path + ADMIN_ROUTE);})}else{navigate('../'+inface.pages.filter(page=>page.title === e.target.value)[0].path + ADMIN_ROUTE)}}} style={{fontWeight:'bold',background:inface.aback,color:inface.acolor,marginRight:'20px'}}>
                         {inface.pages.slice().sort().map(d=><option key={d.title}>{d.title}</option>)}
@@ -567,14 +645,14 @@ const MainPage = observer(() => {
                         </select>
                     </div>
                 </div>}
-                <div id={'page'+page.id} style={{minHeight:'2fr',justifyItems:'stretch',display:"grid",width:'100%',position:'relative'}}>
+                {page && <div id={'page'+page.id} style={{minHeight:'2fr',justifyItems:'stretch',display:"grid",width:'100%',position:'relative'}}>
                     <style>{JSON.parse(page.obj || '{}').css}</style>
                     {inface.blocks.slice().sort((a,b)=>a.priority-b.priority).map((d,key)=>d.parent === 'page'+page.id &&<Distrib data={d}/>)}
                     {user.role > 3 && (inface.moveblock === '' || inface.moveblock === 'page'+page.id) && inface.blockType &&<div style={{width:'100%',position:'relative',display:'grid',placeItems:'center',}}>
                         <div style={{background:inface.acolor2 || inface.acolor2,width:'100%',height:'4px',top:'0',gridRow:'1/2',gridColumn:'1/2',borderRadius:'4px'}}></div>
                         <div style={{fontWeight:'bold',background:inface.acolor2 || inface.acolor2,color:'white',gridRow:'1/2',gridColumn:'1/2',borderRadius:'4px',padding:'0 8px'}}>Поместить сюда</div>
                     </div>}
-                </div>
+                </div>}
             </div>
             {user.role > 3 && document.location.pathname.includes(ADMIN_ROUTE) && inface.currText.id &&<div style={{position:'fixed',top:'120px',left:'20%',display:'grid',zIndex:'1011',}}>
                 <div onClick={()=>inface.setCurrText({})} style={{width:'100%',height:document.documentElement.clientHeight + 'px',backgroundColor:'black',opacity:'0.5',position:'fixed',top:'0',left:'0',display:'block'}}/>
@@ -599,13 +677,13 @@ const MainPage = observer(() => {
                 />
                 <button style={{zIndex:'2',justifySelf:'center',fontSize:'1.2em',fontWeight:'600',color:inface.acolor,background:inface.aback,marginTop:'5px',padding:'10px 50px',border:'1px '+inface.acolor+' solid',borderRadius:'10px',cursor:'pointer'}} onClick={()=>{if(editorRef.current){setObjProperty('text',editorRef.current.getContent(),inface.currText.id).then(d=>{inface.setBlocks(d);inface.setCurrSettings(d.filter(d=>d.id === inface.currSettings.id)[0]);inface.setCurrText({});}).catch(d=>alert(d))}}}>Сохранить</button>
             </div>}
-            {user.role > 3 && document.location.pathname.includes(ADMIN_ROUTE) && inface.currImageProp &&<div style={{overflowY:'auto',width:inface.width * 0.8 + 'px',height:inface.height + 'px',position:'fixed',top:'0px',left:'0',display:'block',zIndex:'1011',padding:'0% '+(inface.width * 0.1) + 'px',}}>
+            {user.role > 3 && document.location.pathname.includes(ADMIN_ROUTE) && inface.currImageProp &&<div style={{overflowY:'auto',width:'100%',height:inface.height + 'px',position:'fixed',top:'0px',left:'0',display:'block',zIndex:'1011',padding:'0% '+(inface.width * 0.1) + 'px',}}>
                 <div onClick={()=>{inface.setCurrImageProp(null);document.getElementById('theOnlyOneBody').style.overflow = 'auto'}} style={{width:'100%',height:document.documentElement.clientHeight + 'px',backgroundColor:'black',opacity:'0.5',position:'fixed',top:'0px',left:'0',display:'block'}}/>
                 <div style={{overflowY:'hidden',margin:'7% 0',justifyItems:'center',gridGap:'1em',display:'grid',gridTemplateRows:'min-content min-content 1fr',background:inface.aback,zIndex:'2',width:'calc(100% - 60px)',minHeight:'100%',padding:'30px',borderRadius:'15px',position:'relative',}}>
                     <h3>Файлы</h3>
                     <div>Загрузить новый файл:<input style={{width:'9em',}} onChange={e=>{let form = new FormData();form.append('file',e.target.files[0]);changeSite('addImage',form).then(data=>{inface.setImages(data);}).catch(d=>alert(d))}} type='file'/></div>
                     <div style={{position:'relative',width:'100%',gridGap:'1em',display:'grid',gridTemplateColumns:'repeat(4,1fr)'}}>
-                        {inface.images.slice().reverse().map((d,key)=><div key={'uploadImg'+d.id} style={{display:'grid',gridGap:'1em',width:'100%',placeItems:'center',position:'relative'}}>
+                        {inface.images.slice().sort((a, b) => a.id - b.id).reverse().map((d,key)=><div key={'uploadImg'+d.id} style={{display:'grid',gridGap:'1em',width:'100%',placeItems:'center',position:'relative'}}>
                             <div style={{fontWeight:'300',fontSize:'0.63em'}}>{d.path}<svg onClick={()=>{let form = new FormData();form.append('id',d.id);changeSite('removeImage',form).then(data=>{inface.setImages(data.images);inface.setBlocks(data.blocks)}).catch(d=>alert(d))}} style={{width:'15px',height:'15px',top:'5px',position:'relative',paddingLeft:'10px',cursor:'pointer',fill:'grey',overflow:'hidden'}} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><use xlinkHref='#crossSVG' ></use></svg></div>
                             <LazyImage onClick={()=>{let val = null;if(inface.currImageProp.toLowerCase().includes('arr')){let arr1 = JSON.parse(JSON.parse(inface.currSettings.obj || '{}').imgArr || '[]');arr1.push(d.path);val = JSON.stringify(arr1)}else{val = d.path};setObjProperty(inface.currImageProp,val,inface.currSettings.id).then(data=>{inface.setBlocks(data);inface.setCurrSettings(data.filter(d=>d.id === inface.currSettings.id)[0]);inface.setCurrImageProp(null);document.getElementById('theOnlyOneBody').style.overflow = 'auto'})}} style={{objectFit:'contain',maxWidth:'100%',maxHeight:'250px',minHeight:'150px',borderRadius:'10px',cursor:'pointer',alignSelf:'start'}} src={process.env.REACT_APP_API_URL + d.path}/>
                         </div>)}
@@ -623,29 +701,61 @@ const MainPage = observer(() => {
             </div>
             <div id={'productBG'} onClick={()=>{document.getElementById('theOnlyOneBody').style.overflow = 'auto';inface.setCurrProduct(null)}} style={{zIndex:'1012',width:'100%',height:document.documentElement.clientHeight + 'px',backgroundColor:'black',opacity:'0.5',position:'fixed',top:'0',display:inface.currProduct?'block':'none'}}/>
             <div id={'product'} onMouseUp={e=>{if(!document.getElementById('productCont').contains(e.target)){document.getElementById('theOnlyOneBody').style.overflow = 'auto';inface.setCurrProduct(null);setProdCount(1);}}} style={{zIndex:'1013',display:inface.currProduct?'block':'none',position:'fixed',overflow:'auto',width:'100%',bottom:'0',height:document.documentElement.clientHeight + 'px',padding:'0px 0',}}>
-                <svg style={{cursor:'pointer',top:'40px',width:'20px',height:'20px',right:'40px',fill:'white',overflow:'hidden',position:'fixed'}} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><use xlinkHref='#crossSVG' ></use></svg>
-                <div id={'productCont'} style={{display:'grid',gridGap:'1em',justifyItems:'center',borderRadius:'10px',margin:'70px 0',padding:document.documentElement.clientWidth > 1000?'30px 30px':'20px',position:'relative',width:document.documentElement.clientWidth > 800?'800px':'calc(100% - 40px)',left:document.documentElement.clientWidth > 800?'calc(50% - 430px)':'0',color:'black',background:'white',fontSize:document.documentElement.clientWidth > 700?'inherit':'13px'}}>
-                    {inface.currProduct && <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gridGap:'1em',width:'100%'}}>
-                        <LazyImage style={{objectFit:'contain',height:'280px',width:'100%'}} src={process.env.REACT_APP_API_URL + JSON.parse(inface.currProduct.obj || "{}").background} alt=''/>
-                        <div style={{display:'grid',alignItems:'center'}}>
-                            <h3 style={{textAlign:'center',marginBottom:'1em'}}>{JSON.parse(inface.currProduct.obj || "{}").title}</h3>
-                            <div style={{fontSize:'1.1em',textAlign:'center'}}><b>{JSON.parse(inface.currProduct.obj || "{}").price && JSON.parse(inface.currProduct.obj || "{}").price.length > 0 && JSON.parse(inface.currProduct.obj || "{}").price}</b> руб.</div>
-                            <div style={{placeSelf:"center"}} className='noselect'>
-                                <div onClick={()=>{if(prodCount > 1){setProdCount(prodCount - 1)}}} style={{cursor:'pointer',padding:'16px 14px 21px 14px',fontWeight:'bold',fontSize:'1.8em',lineHeight:'0',borderRadius:'50%',boxShadow:'0 1px 14px 1px rgb(0 0 0 / 10%)',display:'inline-block',background:'white'}}>-</div>
-                                <span style={{fontSize:'1.6em',margin:'0 20px'}}>{prodCount} шт.</span>
-                                <div onClick={()=>{setProdCount(prodCount + 1)}} style={{cursor:'pointer',padding:'17px 10px 20px 10px',fontWeight:'bold',fontSize:'1.8em',lineHeight:'0',borderRadius:'50%',boxShadow:'0 1px 14px 1px rgb(0 0 0 / 10%)',display:'inline-block',background:'white'}}>+</div>
-                            </div>
-                            <button onClick={()=>{setProdCount(1);let arr = inface.basket;for(let i = 0;i < prodCount;i++){arr.push(inface.currProduct.id)};inface.setBasket(arr);document.getElementById('theOnlyOneBody').style.overflow = 'auto';inface.setCurrProduct(null)}} style={{cursor:'pointer',width:'100%',border:'none',color:'white',fontWeight:'600',padding:'7px 10px',fontSize:'1em',borderRadius:'15px',background:'#F94F0D',}}>Добавить | {JSON.parse(inface.currProduct.obj || "{}").price && JSON.parse(inface.currProduct.obj || "{}").price.length > 0 && JSON.parse(inface.currProduct.obj || "{}").price * prodCount} руб.</button>
+                <svg style={{cursor:'pointer',top:inface.mobile ? '20px' : '40px',width:'20px',height:'20px',right:inface.mobile ? '20px' : '40px',fill:'white',overflow:'hidden',position:'fixed'}} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><use xlinkHref='#crossSVG' ></use></svg>
+                <div id={'productCont'} style={{display:'grid',gridGap:'1em',justifyItems:'center',maxWidth:'100%',borderRadius:'10px',margin:'70px 0',padding:document.documentElement.clientWidth > 1000?'30px 30px':'20px',position:'relative',width:inface.mobile ? '100%' : '800px',left:document.documentElement.clientWidth > 800?'calc(50% - 430px)':'0',color:'black',background:'white',fontSize:document.documentElement.clientWidth > 700?'inherit':'13px'}}>
+                    {inface.currProduct && <div style={{display:'grid',gridTemplateColumns:inface.mobile ? '1fr' : '1fr 0.8fr',gridGap:'1em',width:'100%'}}>
+                        {inface.mobile && <h3 style={{textAlign:'center'}}>{JSON.parse(inface.currProduct.obj || "{}").title}</h3>}
+                        <div id={'main_slider_wrapper'+inface.currProduct.id} style={{maxHeight:inface.mobile ? '200px' : '450px',maxWidth:'100%',position:'relative',display:'grid'}}>
+                            <Slider data={inface.currProduct}/>
                         </div>
-                    </div>}
-                    {inface.currProduct && <div>
-                        <div style={{fontSize:'0.95em',marginTop:'7px',}}><div  dangerouslySetInnerHTML={{__html:JSON.parse(inface.currProduct.obj || '{}').text || ''}}/></div>
-                        <br/>
+                        {!inface.mobile && <div style={{display:'grid',alignItems:'center'}}>
+                            <h3 style={{textAlign:'center',marginBottom:'1em'}}>{JSON.parse(inface.currProduct.obj || "{}").title}</h3>
+                            <div style={{fontSize:'1.1em',textAlign:'center'}}><b>{JSON.parse(inface.currProduct.obj || "{}").price && JSON.parse(inface.currProduct.obj || "{}").price.length > 0 && JSON.parse(inface.currProduct.obj || "{}").price.toString().replace(/\B(?=(?:\d{3})+(?!\d))/g, ' ')}</b> руб.</div>
+                            <div style={{placeSelf:"center"}} className='noselect'>
+                                <div onClick={()=>{setProdCount(prodCount + 1)}} style={{float:'right',cursor:'pointer',padding:inface.mobile ? '12px 6px 12px 6px' : '17px 10px 20px 10px',fontWeight:'bold',fontSize:'1.8em',lineHeight:'0',borderRadius:'50%',boxShadow:'0 1px 14px 1px rgb(0 0 0 / 10%)',display:'inline-block',background:'#c4c4c4'}}>+</div>
+                                <div style={inface.mobile ? {float:'right',margin:'0 4px',paddingTop:'4px'} : {float:'right',fontSize:'1.6em',margin:'0 20px'}}>{prodCount} шт.</div>
+                                <div onClick={()=>{if(prodCount > 1){setProdCount(prodCount - 1)}}} style={{float:'right',cursor:'pointer',padding:inface.mobile ? '12px 9px 12px 9px' : '16px 14px 21px 14px',fontWeight:'bold',fontSize:'1.8em',lineHeight:'1px',borderRadius:'50%',boxShadow:'0 1px 14px 1px rgb(0 0 0 / 10%)',display:'inline-block',background:'#c4c4c4'}}>-</div>
+                            </div>
+                            <button onClick={()=>{setProdCount(1);let arr = inface.basket;for(let i = 0;i < prodCount;i++){arr.push(inface.currProduct.id)};inface.setBasket(arr);document.getElementById('theOnlyOneBody').style.overflow = 'auto';inface.setCurrProduct(null)}} style={{cursor:'pointer',width:'100%',border:'none',color:'white',fontWeight:'600',padding:'7px 10px',fontSize:'1em',borderRadius:'15px',background:JSON.parse(page.obj || '{}').color || '#022978',}}>Добавить | {JSON.parse(inface.currProduct.obj || "{}").price && JSON.parse(inface.currProduct.obj || "{}").price.length > 0 && (JSON.parse(inface.currProduct.obj || "{}").price * prodCount).toString().replace(/\B(?=(?:\d{3})+(?!\d))/g, ' ')} руб.</button>
+                        </div>}
+                        <div>
+                            <div style={{fontSize:'0.95em',marginTop:'2em'}}><div  dangerouslySetInnerHTML={{__html:JSON.parse(inface.currProduct.obj || '{}').text || ''}}/></div>
+                            <br/>
+                        </div>
+                        {inface.mobile && <div style={{fontSize:'1.1em',textAlign:'center',}}><b>{JSON.parse(inface.currProduct.obj || "{}").price && JSON.parse(inface.currProduct.obj || "{}").price.length > 0 && JSON.parse(inface.currProduct.obj || "{}").price.toString().replace(/\B(?=(?:\d{3})+(?!\d))/g, ' ')}</b> руб.</div>}
+                        {inface.mobile && <div style={{placeSelf:"center"}} className='noselect'>
+                            <div onClick={()=>{setProdCount(prodCount + 1)}} style={{float:'right',cursor:'pointer',padding:inface.mobile ? '12px 6px 12px 6px' : '17px 10px 20px 10px',fontWeight:'bold',fontSize:'1.8em',lineHeight:'0',borderRadius:'50%',boxShadow:'0 1px 14px 1px rgb(0 0 0 / 10%)',display:'inline-block',background:'#c4c4c4'}}>+</div>
+                            <div style={inface.mobile ? {float:'right',margin:'0 4px',paddingTop:'4px'} : {float:'right',fontSize:'1.6em',margin:'0 20px'}}>{prodCount} шт.</div>
+                            <div onClick={()=>{if(prodCount > 1){setProdCount(prodCount - 1)}}} style={{float:'right',cursor:'pointer',padding:inface.mobile ? '12px 9px 12px 9px' : '16px 14px 21px 14px',fontWeight:'bold',fontSize:'1.8em',lineHeight:'1px',borderRadius:'50%',boxShadow:'0 1px 14px 1px rgb(0 0 0 / 10%)',display:'inline-block',background:'#c4c4c4'}}>-</div>
+                        </div>}
+                        {inface.mobile && <button onClick={()=>{setProdCount(1);let arr = inface.basket;for(let i = 0;i < prodCount;i++){arr.push(inface.currProduct.id)};inface.setBasket(arr);document.getElementById('theOnlyOneBody').style.overflow = 'auto';inface.setCurrProduct(null)}} style={{cursor:'pointer',width:'100%',border:'none',color:'white',fontWeight:'600',padding:'7px 10px',fontSize:'1em',borderRadius:'15px',background:JSON.parse(page.obj || '{}').color || '#022978',}}>Добавить | {JSON.parse(inface.currProduct.obj || "{}").price && JSON.parse(inface.currProduct.obj || "{}").price.length > 0 && (JSON.parse(inface.currProduct.obj || "{}").price * prodCount).toString().replace(/\B(?=(?:\d{3})+(?!\d))/g, ' ')} руб.</button>}
                     </div>}
                 </div>
             </div>
-            {inface.basket.length && cost > 0 && <div style={{position:'fixed',cursor:'pointer',display:'grid',gridTemplateColumns:'1fr 1fr',bottom:'1em',left:'calc(50% - 300px - 1em)',background:JSON.parse(page.obj || '{}').color || '#F94F0D',color:'white',maxWidth:'100%',width:'600px',padding:'0.7em 1em',fontSize:'1.3em',fontWeight:'bold',borderRadius:'40px',}}>
+            {inface.basket.length && cost > 0 ? <div style={{position:'fixed',cursor:'pointer',display:'grid',gridTemplateColumns:'1fr 1fr',bottom:'1em',left:inface.mobile ? '5%' : 'calc(50% - 300px - 1em)',background:JSON.parse(page.obj || '{}').color || '#022978',color:'white',maxWidth:'90%',width:inface.mobile ? '90%' : '600px',padding:'0.7em 1em',fontSize:inface.mobile ? '1.3em' : '1.1em',fontWeight:'bold',borderRadius:'40px',}}>
                 <div>Оформить заказ</div><div style={{textAlign:'right'}}> <span style={{fontWeight:'400'}}>{cost} руб.</span></div>
+            </div> : null}
+            {inface.mobile && <div style={{background:'#fff',width:'100%',height:inface.height + 100 + 'px', position:'fixed',top:'0px',left:'0',display:'none',gridAutoFlow:'row'}} id="mobile_categories_list">
+                <div style={{padding:'1em 1em'}}>
+                    <div style={{fontSize:'1.5em',fontWeight:'600',marginBottom:'1em'}}>Категории</div>
+                    <div style={{overflowY:'auto',maxHeight:inface.height - 120 + 'px'}}>
+                        {categories.map((d,key)=>
+                            <div key={'cat'+d} style={{whiteSpace:'nowrap',background:(inface.category === "" && key === 0) || inface.category === d?'#e3e3e3':'transparent',fontWeight:'600',borderRadius:'10px',padding:'0.5em 1em',cursor:'pointer'}} onClick={()=>{
+                                window.scrollTo(0, 0);
+                                inface.setCategory(d);
+                                document.getElementById('theOnlyOneBody').style.overflowY = 'auto';
+                                document.getElementById('mobile_categories_list').style.display = 'none';
+                            }}>{d}</div>
+                        )}
+                    </div>
+                </div>
+                <div onClick={()=>{
+                    window.scrollTo(0, 0);
+                    document.getElementById('theOnlyOneBody').style.overflowY = 'auto';
+                    document.getElementById('mobile_categories_list').style.display = 'none';
+                }} style={{background:'#d2d2d2',justifySelf:'center',alignSelf:'start',padding:'0.5em 4em',borderRadius:'12px',fontSize:'1.5em',cursor:'pointer',marginBottom:'100px'}}>
+                    Закрыть
+                </div>
             </div>}
         </div>
     );
